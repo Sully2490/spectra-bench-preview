@@ -1,6 +1,16 @@
 // ---------- app shell: tabs, tray, table, course ----------
-const TABS=[["Map","🗺️ Map"],["Notes","📖 Notes"],["Lab","🧪 Lab"],["Prep","⏱️ Prep"],["Drill","🎯 Drill"],["Cards","🃏 Cards"]];
-$("#tabs").innerHTML=TABS.map(([t,l])=>`<button data-t="${t}">${l}</button>`).join("");$$("#tabs button").forEach(b=>b.onclick=()=>location.hash=b.dataset.t);
+const TOOLS=[["Lab","🧪 Lab (all visuals)"],["Drill","🎯 Drill"],["Prep","⏱️ Exam prep"],["Cards","🃏 Flashcards"]];
+const SIDE=JSON.parse(localStorage.sbSide||'{"3":true,"4":true}');
+function renderSide(){const [t,sub]=decodeURIComponent(location.hash.slice(1)||"Map").split("/");const cur=t=="Notes"?(sub||""):null;const ic={locked:"🔒",inprog:"●",mastered:"✓",skipped:"⏭"};
+ const curCh=cur&&LESSONS.find(l=>l.id==cur);if(curCh)SIDE[curCh.ch]=true;
+ $("#side").innerHTML=`<a class="sItem ${t=="Map"?"on":""}" href="#Map">🗺️ Course map</a>`+[3,4].map(ch=>{const ls=LESSONS.map((l,i)=>[l,i]).filter(([l])=>l.ch==ch),m=ls.filter(([l,i])=>statusOf(i)=="mastered").length;
+  return`<div class="sMod ${SIDE[ch]?"open":""}"><button class="sHead" data-ch="${ch}" aria-expanded="${!!SIDE[ch]}"><span class="car">▸</span> Chapter ${ch}<span class="sCnt">${m}/${ls.length}</span></button><div class="sSub">${ls.map(([l,i])=>{const st=statusOf(i);
+   return`<a class="sLes ${st} ${cur==l.id?"on":""}" href="#Notes/${l.id}" title="${l.g}"><span class="sIc">${ic[st]||"●"}</span><span class="sT">${l.t}</span>${st=="locked"?`<button class="sSkip" data-i="${i}" title="Skip ahead to this lesson">⏭</button>`:""}</a>`}).join("")}</div></div>`}).join("")+
+  `<div class="sMod open"><div class="sHead static">🧰 Tools</div><div class="sSub">${TOOLS.map(([k,l])=>`<a class="sLes tool ${t==k?"on":""}" href="#${k}">${l}</a>`).join("")}</div></div>`;
+ $$("#side .sHead[data-ch]").forEach(b=>b.onclick=()=>{SIDE[b.dataset.ch]=!SIDE[b.dataset.ch];localStorage.sbSide=JSON.stringify(SIDE);renderSide()});
+ $$("#side .sSkip").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();const i=+b.dataset.i;LS(LESSONS[i].id).open=true;save();toast("⏭ Skipped ahead to "+LESSONS[i].t);location.hash="Notes/"+LESSONS[i].id;renderSide()});
+ $$("#side a").forEach(a=>a.addEventListener("click",()=>document.body.classList.remove("sideOpen")))}
+$("#sideBtn").onclick=()=>document.body.classList.toggle("sideOpen");$("#sideShade").onclick=()=>document.body.classList.remove("sideOpen");
 // tray
 function openTray(){$("#tray").classList.add("open");document.body.classList.add("trayOpen");$("#tray").setAttribute("aria-hidden","false");$("#trayTab").textContent="Close ◂";setTimeout(drawArrows,300)}
 function closeTray(){$("#tray").classList.remove("open");document.body.classList.remove("trayOpen");$("#tray").setAttribute("aria-hidden","true");$("#trayTab").textContent="Periodic table ▸"}
@@ -62,7 +72,7 @@ function Notes(m,id){let i=lesIdx(id);if(i<0){i=LESSONS.findIndex((l,k)=>statusO
  m.querySelector(".prev").onclick=()=>location.hash="Notes/"+LESSONS[i-1].id;m.querySelector(".nextL").onclick=()=>location.hash="Notes/"+LESSONS[i+1].id;
  m.querySelector(".skip").onclick=()=>{skipAhead(i);toast("⏭ Skipped. The next lesson is unlocked.");if(LESSONS[i+1])location.hash="Notes/"+LESSONS[i+1].id};
  if(m.querySelector(".visbox"))VIS[L.vis](m.querySelector(".visbox"));
- const onAns=ok=>{const just=record(L.id,ok);pips();if(just){confetti(120);toast("🏆 Lesson mastered! "+(LESSONS[i+1]?"Next lesson unlocked.":"Course complete!"))}};
+ const onAns=ok=>{const just=record(L.id,ok);pips();renderSide();if(just){confetti(120);toast("🏆 Lesson mastered! "+(LESSONS[i+1]?"Next lesson unlocked.":"Course complete!"))}};
  const nextQ=()=>{const k=rnd(L.gens);askUI(m.querySelector(".pq"),GEN[k].g(),ok=>onAns(ok))};m.querySelector(".nextq").onclick=nextQ;nextQ();
  if(tasks){let ti=0;const nav=m.querySelector(".tasknav");const runTask=()=>{const T=tasks[ti];nav.innerHTML=tasks.map((t,k)=>`<button data-k="${k}" class="${k==ti?"on":""}">${k+1}. ${fF(t.mol)}</button>`).join("");nav.querySelectorAll("button").forEach(b=>b.onclick=()=>{ti=+b.dataset.k;runTask()});
    const mol=MOLS.find(x=>x.f==T.mol),tq=m.querySelector(".tq"),tc=m.querySelector(".tc");
@@ -117,6 +127,7 @@ function Cards(m){const all=[...CARDS.map((c,i)=>({k:"c"+i,f:c[0],b:c[1],d:i<15?
  const key=e=>{if(!g(".fcard"))return removeEventListener("keydown",key);if(e.target.tagName=="INPUT")return;if(e.code=="Space"){e.preventDefault();flip()}if(e.key=="ArrowRight")sort("k");if(e.key=="ArrowLeft")sort("l")};addEventListener("keydown",key);start()}
 // ---------- routing ----------
 addEventListener("hashchange",route);
-function route(){if(!EL.length)return;const[t,sub]=decodeURIComponent(location.hash.slice(1)||"Map").split("/");$$("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.t==t));const m=$("#main");m.innerHTML="";$("#pop").classList.add("hidden");$("#modal").classList.add("hidden");
- ({Map:MapTab,Notes,Lab,Prep,Drill,Cards}[t]||MapTab)(m,sub);bindTerms(m);scrollTo(0,0)}
+function route(){if(!EL.length)return;const[t,sub]=decodeURIComponent(location.hash.slice(1)||"Map").split("/");const m=$("#main");m.innerHTML="";$("#pop").classList.add("hidden");$("#modal").classList.add("hidden");
+ ({Map:MapTab,Notes,Lab,Prep,Drill,Cards}[t]||MapTab)(m,sub);bindTerms(m);renderSide();scrollTo(0,0)}
 loadEls().then(()=>{buildPT();hud();route()});
+const setHH=()=>document.documentElement.style.setProperty("--hh",$("header").offsetHeight+"px");addEventListener("resize",setHH);setHH();

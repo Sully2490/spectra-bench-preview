@@ -76,3 +76,18 @@ table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--li
 .tip{position:absolute;left:12px;top:12px;right:12px;background:#1f2540;color:#fff;padding:10px 12px;border-radius:12px;font-size:14px;z-index:3;box-shadow:0 6px 18px #0004}.tip .btn{margin-left:8px}
 .task .akCan .lwSvg{height:380px}@media(max-width:700px){.vsl{height:220px}.akCan .lwSvg{height:340px}}
 .pscore:empty{display:none}
+/* left course sidebar */
+#sideBtn{background:#fff3;border:0;color:#fff;font-size:20px;border-radius:10px;width:40px;height:36px;cursor:pointer;display:none}
+#side{position:fixed;left:0;top:var(--hh,45px);bottom:0;width:270px;overflow:auto;background:#fff;border-right:1px solid var(--line);padding:10px 8px 40px;z-index:12;font-size:14px}
+@media(min-width:901px){main{margin-left:calc(270px + max(0px,(100vw - 290px - 1100px)/2))}}
+.sItem,.sHead{display:flex;align-items:center;gap:6px;width:100%;padding:9px 10px;border-radius:10px;font-weight:800;color:#1f2540;text-decoration:none;background:none;border:0;font-size:15px;cursor:pointer;text-align:left}
+.sItem.on,.sItem:hover,.sHead:hover{background:#f0eeff}.sHead.static{cursor:default;background:none;margin-top:6px}
+.sCnt{margin-left:auto;font-size:12px;color:#6b6f8a;font-weight:700}.car{transition:transform .2s;display:inline-block}.sMod.open .car{transform:rotate(90deg)}
+.sSub{display:none;padding-left:6px}.sMod.open .sSub{display:block}
+.sLes{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;color:#30344f;text-decoration:none;line-height:1.25}.sLes:hover{background:#f6f5ff}.sLes.on{background:#5b5bf7;color:#fff}
+.sIc{width:20px;height:20px;flex:0 0 20px;border-radius:50%;display:grid;place-items:center;font-size:11px;background:#eef;color:#5b5bf7}
+.sLes.mastered .sIc{background:#18a058;color:#fff}.sLes.locked{color:#8a8ea8}.sLes.locked .sIc{background:none}.sLes.skipped .sIc{background:#f2b705;color:#fff}.sLes.tool .sIc{display:none}
+.sT{flex:1}.sSkip{border:0;background:#fff3d6;border-radius:6px;cursor:pointer;font-size:12px;padding:2px 5px}
+#sideShade{display:none}
+@media(max-width:900px){#sideBtn{display:block}#side{transform:translateX(-100%);transition:transform .25s;box-shadow:4px 0 20px #0002}
+ body.sideOpen #side{transform:none}body.sideOpen #sideShade{display:block;position:fixed;inset:var(--hh,45px) 0 0 0;background:#0004;z-index:11}}
