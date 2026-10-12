@@ -41,7 +41,7 @@ function askUI(box,Q,done){box.innerHTML=`<div class="card popin"><div class="q"
  const fin=(x,okOverride)=>{if(answered)return;answered=true;const ok=okOverride!=null?okOverride:grade(Q,x);scoreAnswer(ok);
   card.querySelector(".fbw").innerHTML=`<div class="fb ${ok?"y":"n"} popin"><b class="${ok?"ok":"bad"}">${ok?rnd(["✔ Nice!","✔ Correct!","✔ Yes!","✔ Nailed it!"]):"✘ Not quite."}</b> ${ok?"":"Answer: <b>"+Q.a+"</b>"}<div>${Q.why||""}</div></div>`;
   if(!ok)card.classList.add("shake");card.querySelectorAll(".ch").forEach(b=>{b.disabled=true;if(norm(b.textContent)==norm(Q.a))b.classList.add("ok");else if(b.textContent==x)b.classList.add("bad")});done&&done(ok,x)};
- card.querySelectorAll(".ch").forEach(b=>b.onclick=()=>fin(b.textContent));const i=card.querySelector(".ans");if(i){setTimeout(()=>i.focus(),50);i.onkeydown=e=>e.key=="Enter"&&fin(i.value);card.querySelector(".go").onclick=()=>fin(i.value)}
+ card.querySelectorAll(".ch").forEach(b=>b.onclick=()=>fin(b.textContent));const i=card.querySelector(".ans");if(i){setTimeout(()=>i.focus(),50);i.onkeydown=e=>{if(e.key=="Enter")fin(i.value)};card.querySelector(".go").onclick=()=>fin(i.value)}
  if(Q.widget)Q.widget(card.querySelector(".wbox"),ok=>fin(ok?"(correct diagram)":"(diagram)",ok))}
 const mc=(q,a,choices,why,extra={})=>({q,a,c:shuffle([...new Set([a,...choices])]),why,...extra});
 const bank=list=>()=>{const [q,a,w,why]=rnd(list);return mc(q,a,w,why)};
