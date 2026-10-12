@@ -16,106 +16,98 @@ function treeLayout(sk,cx,cy,lpArr){const P={};const place=(i,inAng,L)=>{const k
   const start=sk[i][1]<0?(kids.length==2&&!(lpArr&&lpArr[i])?180:kids.length==1?180:90):inAng+180;const ang=[];for(let q=0;q<k;q++)ang.push((start+q*step)%360);const slots=sk[i][1]<0?ang:ang.slice(1);
   kids.forEach((c,q)=>{const t=slots[q]*Math.PI/180,len=sk[c][0]=="H"?70:95;P[c]=[P[i][0]+len*Math.cos(t),P[i][1]+len*Math.sin(t)];place(c,slots[q])})};P[0]=[cx,cy];place(0,0);return P}
 function LewisBuilder(root,opts={}){
+ // Aktiv "Free Draw" model: starts as 2 blank atoms + 1 bond, auto-layout (no dragging, no palette), tap to select (red),
+ // RIGHT slider = bonds (neighbors 1-6, auto-adds blank atoms), LEFT slider = nonbonding electrons (or bond type for a bond),
+ // Change Element / double-tap = periodic-table picker, toolbar: ? / reset / undo / FC / e-.  Extras: Check, Hint, practice mode.
  const mols=opts.mols?MOLS.filter(m=>opts.mols.includes(m.f)):MOLS;let mol=opts.mol?MOLS.find(m=>m.f==opts.mol):mols[0];
- let S,hist=[],mode="bond",sel=null,found=new Set(),solved=false,ref=solveRef(mol);
- const reset=()=>{S={atoms:[],bonds:[]};hist=[];sel=null;found=new Set();solved=false;ref=solveRef(mol);if(opts.preload)preloadOctet()};
- function preloadOctet(){const P=treeLayout(mol.sk,300,215);mol.sk.forEach((x,i)=>S.atoms.push({id:i,el:x[0],x:P[i][0],y:P[i][1],lp:0,fc:0}));mol.sk.forEach((x,i)=>{if(x[1]>=0)S.bonds.push({a:x[1],b:i,o:1})});
-  const T=totalVE(mol);let left=T-2*S.bonds.length;S.atoms.forEach((a,i)=>{if(i>0){a.lp=3;left-=6}});S.atoms[0].lp=Math.max(0,left/2);S.atoms.forEach(a=>a.fc=fcOf(a))}
+ let S,hist=[],sel=null,found=new Set(),solved=false,ref,showFC=false,showE=false,lastTap={t:0,id:null},practice=!!opts.practice,pScore=[0,0];
+ const start=()=>({atoms:[{id:0,el:null,parent:-1,lp:0},{id:1,el:null,parent:0,lp:0}],ord:{1:1}});
+ const reset=(keepMol)=>{S=start();hist=[];sel={t:"a",id:0};found=new Set();solved=false;ref=solveRef(mol);if(opts.preload)preloadOctet()};
+ function preloadOctet(){S={atoms:mol.sk.map((x,i)=>({id:i,el:x[0],parent:x[1],lp:0})),ord:{}};S.atoms.forEach(a=>{if(a.parent>=0)S.ord[a.id]=1});let left=totalVE(mol)-2*(S.atoms.length-1);S.atoms.forEach((a,i)=>{if(i){a.lp=3;left-=6}});S.atoms[0].lp=Math.max(0,left/2);sel=null}
  const snap=()=>{hist.push(JSON.stringify(S));if(hist.length>80)hist.shift()};
- const bondsOf=id=>S.bonds.filter(b=>b.a==id||b.b==id),bsum=id=>bondsOf(id).reduce((s,b)=>s+b.o,0),fcOf=a=>VAL[a.el]-2*a.lp-bsum(a.id),eAround=a=>2*(bsum(a.id)+a.lp);
- const need=()=>totalVE(mol),used=()=>2*S.bonds.reduce((s,b)=>s+b.o,0)+2*S.atoms.reduce((s,a)=>s+a.lp,0);
+ const A=id=>S.atoms.find(a=>a.id==id),kids=id=>S.atoms.filter(a=>a.parent==id),deg=a=>kids(a.id).length+(a.parent>=0?1:0);
+ const bondsOf=id=>{const a=A(id),r=kids(id).map(k=>({a:id,b:k.id,o:S.ord[k.id]}));if(a.parent>=0)r.push({a:a.parent,b:id,o:S.ord[id]});return r};
+ const bsum=id=>bondsOf(id).reduce((s,b)=>s+b.o,0),fcOf=a=>a.el?VAL[a.el]-2*a.lp-bsum(a.id):0,eAround=a=>2*(bsum(a.id)+a.lp);
+ const need=()=>totalVE(mol),used=()=>2*Object.values(S.ord).reduce((s,o)=>s+o,0)+2*S.atoms.reduce((s,a)=>s+a.lp,0);
  const target=a=>a.el=="H"?2:a.el=="B"?6:a.el=="Be"?4:8;
- root.innerHTML=`<div class="lw"><div><div class="row" style="align-items:center;justify-content:space-between">
- ${opts.lockMol?`<b style="font-size:18px">${fF(mol.f)}${mol.n?` <span class="mut">(${mol.n})</span>`:""}</b>`:`<label>Molecule <select class="lm">${mols.map(m=>`<option value="${m.f}" ${m==mol?"selected":""}>${fF(m.f)}</option>`).join("")}</select></label>`}
- <div class="tool">
-  <button class="btn sm sec md" data-m="bond" title="Bond tool: click an atom, then another, to bond them. Click a bond to change its order.">🔗 Bond</button>
-  <button class="btn sm sec md" data-m="lp+" title="Click an atom to add a lone pair">•• +</button><button class="btn sm sec md" data-m="lp-" title="Click an atom to remove a lone pair">•• −</button>
-  <button class="btn sm sec md" data-m="fc+" title="Click an atom: formal charge +1">⊕</button><button class="btn sm sec md" data-m="fc-" title="Click an atom: formal charge −1">⊖</button>
-  <button class="btn sm sec md" data-m="erase" title="Erase atoms or bonds">🗑</button>
-  <button class="btn sm sec und" title="Undo">↶</button><button class="btn sm sec clr" title="Clear">✕</button><button class="btn sm sec hlp" title="Help">?</button></div></div>
- <div class="palette"></div><svg class="lwSvg" id="lwSvg" viewBox="0 0 600 430"></svg>
- <div class="mut" style="font-size:12.5px">Drag a tile onto the canvas, or click a tile to add it. With an atom selected, a click on a tile adds a new atom already bonded to it. Drag atoms to move them. Right-click an atom to remove a lone pair.</div></div>
- <div><div class="card"><b>Valence electrons</b><div class="meter"><i></i></div><div class="vc" style="margin-top:4px"></div>
-  <label class="chk"><input type="checkbox" class="showE" checked> show electron count on each atom</label></div>
- <button class="btn ok chkb">✔ Check</button><button class="btn sec hint">💡 Hint</button><div class="msgs"></div><div class="after"></div></div></div>`;
- const svg=root.querySelector("svg"),q=s=>root.querySelector(s);
- const setMode=m=>{mode=m;root.querySelectorAll(".md").forEach(b=>b.classList.toggle("ok",b.dataset.m==m));root.querySelectorAll(".md").forEach(b=>b.classList.toggle("sec",b.dataset.m!=m))};setMode("bond");
- root.querySelectorAll(".md").forEach(b=>b.onclick=()=>setMode(b.dataset.m));
- q(".und").onclick=()=>{if(hist.length){S=JSON.parse(hist.pop());sel=null;draw()}};q(".clr").onclick=()=>{snap();S={atoms:[],bonds:[]};sel=null;draw();msg([])};
- q(".hlp").onclick=()=>msg([["h","<b>How to draw:</b> 1) Add every atom from the palette (central atom first). 2) 🔗 Click atom A, then atom B, to bond them; click a bond to cycle single → double → triple. 3) Use •• + / •• − for lone pairs. 4) Use ⊕/⊖ to mark formal charges. 5) Check. The bar shows how many valence electrons you've placed out of the total."]]);
- if(q(".lm"))q(".lm").onchange=e=>{mol=MOLS.find(m=>m.f==e.target.value);reset();q(".after").innerHTML="";msg([]);draw();opts.onMol&&opts.onMol(mol)};
- q(".showE").onchange=draw;
+ root.innerHTML=`<div class="akt"><div class="akTop"><b class="akF"></b>${opts.lockMol?"":`<select class="lm">${mols.map(m=>`<option value="${m.f}" ${m==mol?"selected":""}>${fF(m.f)}</option>`).join("")}</select><button class="btn sm sec prac">🎲 Practice mode</button><span class="chip pscore"></span>`}<button class="btn sm done">Done</button></div>
+ <div class="akMid"><div class="slw"><input type="range" class="vsl lsl" min="0" max="8" step="2" value="0"><small class="lsll">electrons</small><b class="lslv"></b></div>
+ <div class="akCan"><svg class="lwSvg" viewBox="0 0 600 430"></svg><div class="tip hidden"></div></div>
+ <div class="slw"><input type="range" class="vsl rsl" min="1" max="6" step="1" value="1"><small>bonds</small><b class="rslv"></b></div></div>
+ <div class="akBar"><button class="tb hlp" title="Help">?</button><button class="tb rst" title="Reset">🗑</button><button class="tb und" title="Undo">↶</button><button class="tb fcT" title="Formal charges">FC±</button><button class="tb eT" title="Valence electrons">e⁻</button><button class="btn sm sec chel">Change Element</button>
+ <span class="grow"></span><button class="btn sm ok chkb">✔ Check</button><button class="btn sm sec hint">💡 Hint</button></div>
+ <div class="meter" style="margin-top:6px"><i></i></div><div class="vc mut" style="font-size:13px"></div><div class="msgs"></div><div class="after"></div></div>`;
+ const q=s=>root.querySelector(s),svg=q("svg"),lsl=q(".lsl"),rsl=q(".rsl");
  function msg(list){q(".msgs").innerHTML=list.map(([t,s])=>`<div class="msg ${t} popin">${s}</div>`).join("")}
- const newId=()=>S.atoms.length?Math.max(...S.atoms.map(a=>a.id))+1:0;
- function addAtom(el,x,y,bondTo){snap();const id=newId();if(x==null){if(bondTo!=null){const p=S.atoms.find(a=>a.id==bondTo);const n=bondsOf(bondTo).length;const t=(n*(360/Math.max(4,n+1))+(n%2?180:0))*Math.PI/180;x=p.x+(el=="H"?70:92)*Math.cos(t);y=p.y+(el=="H"?70:92)*Math.sin(t)}
-  else if(!S.atoms.length){x=300;y=215}else{const t=S.atoms.length*1.7;x=300+120*Math.cos(t);y=215+110*Math.sin(t)}}
-  x=Math.max(25,Math.min(575,x));y=Math.max(25,Math.min(405,y));S.atoms.push({id,el,x,y,lp:0,fc:0});if(S.atoms.length==1)sel=id;if(bondTo!=null)S.bonds.push({a:bondTo,b:id,o:1});draw()}
- function lpAngles(a){const bd=bondsOf(a.id).map(b=>{const o=S.atoms.find(x=>x.id==(b.a==a.id?b.b:b.a));return Math.atan2(o.y-a.y,o.x-a.x)});const res=[];
-  for(let k=0;k<a.lp;k++){let bestA=0,bestD=-1;for(let t=0;t<360;t+=10){const r=t*Math.PI/180;const d=Math.min(...[...bd,...res].map(x=>{let dd=Math.abs(x-r)%(2*Math.PI);return Math.min(dd,2*Math.PI-dd)}),9);if(d>bestD+1e-6){bestD=d;bestA=r}}res.push(bestA)}return res}
- function draw(highlight=[]){let h="";const showE=q(".showE").checked;
-  S.bonds.forEach((b,i)=>{const A=S.atoms.find(x=>x.id==b.a),B=S.atoms.find(x=>x.id==b.b);const dx=B.x-A.x,dy=B.y-A.y,L=Math.hypot(dx,dy)||1,nx=-dy/L*5,ny=dx/L*5,sx=dx/L*19,sy=dy/L*19;
-   const offs=b.o==1?[0]:b.o==2?[-1,1]:[-1.7,0,1.7];h+=`<g class="bd" data-i="${i}" style="cursor:pointer"><line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="transparent" stroke-width="20"/>`+offs.map(o=>`<line x1="${A.x+sx+nx*o}" y1="${A.y+sy+ny*o}" x2="${B.x-sx+nx*o}" y2="${B.y-sy+ny*o}" stroke="#3b4166" stroke-width="3" stroke-linecap="round"/>`).join("")+"</g>"});
-  S.atoms.forEach(a=>{lpAngles(a).forEach(t=>{const cx=a.x+27*Math.cos(t),cy=a.y+27*Math.sin(t),px=-Math.sin(t)*6,py=Math.cos(t)*6;h+=`<circle cx="${cx+px}" cy="${cy+py}" r="3.6" fill="#7a4cff"/><circle cx="${cx-px}" cy="${cy-py}" r="3.6" fill="#7a4cff"/>`});
-   const e=eAround(a),okE=a.el=="H"?e==2:(BY[a.el].p>2?e>=8:e==target(a)),hl=highlight.includes(a.id);
-   h+=`<g class="at" data-id="${a.id}" style="cursor:pointer"><circle cx="${a.x}" cy="${a.y}" r="19" fill="${sel==a.id?"#5b5bf7":hl?"#ffe1e1":"#fff"}" stroke="${hl?"#e5484d":sel==a.id?"#3f3fc4":"#c9cde3"}" stroke-width="2.5"/>
-   <text x="${a.x}" y="${a.y+7}" text-anchor="middle" font-size="20" font-weight="800" fill="${sel==a.id?"#fff":"#1f2540"}">${a.el}</text>`+
-   (a.fc?`<circle cx="${a.x+19}" cy="${a.y-18}" r="10" fill="${a.fc>0?"#e5484d":"#3fa9ff"}"/><text x="${a.x+19}" y="${a.y-13.5}" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">${a.fc>0?"+":"−"}${Math.abs(a.fc)>1?Math.abs(a.fc):""}</text>`:"")+
-   (showE?`<text x="${a.x-21}" y="${a.y+30}" font-size="11" font-weight="800" fill="${okE?"#18a058":"#c76b00"}">${e}e⁻</text>`:"")+"</g>"});
-  if(mol.q)h+=`<text x="585" y="30" font-size="18" font-weight="800" fill="#7a4cff" text-anchor="end">charge ${mol.q<0?(mol.q<-1?-mol.q:"")+"−":"+"}</text>`;
-  if(solved)h=`<rect x="6" y="6" width="588" height="418" rx="14" fill="none" stroke="#18a058" stroke-width="5"/>`+h;
-  svg.innerHTML=h||`<text x="300" y="215" text-anchor="middle" fill="#9aa0bd" font-size="16">Drag atoms here from the palette ↑</text>`;
-  const cnt=formulaCount(mol.f),have={};S.atoms.forEach(a=>have[a.el]=(have[a.el]||0)+1);
-  q(".palette").innerHTML=Object.entries(cnt).map(([e,n])=>`<div class="pchip ${(have[e]||0)>=n?"done":""}" data-e="${e}">${e}<small>${have[e]||0}/${n}</small></div>`).join("");
+ function layout(){const P={},LP={};const r0=S.atoms.find(a=>a.parent<0);P[r0.id]=[0,0];
+  const place=(a,inAng)=>{const ks=kids(a.id),k=ks.length+a.lp+(a.parent<0?0:1),step=360/Math.max(k,1);const st=a.parent<0?(ks.length+a.lp==2?180:a.lp?270:90):inAng+180;const ang=[];for(let i=0;i<k;i++)ang.push((st+i*step)%360);
+   let slots=a.parent<0?ang:ang.slice(1);if(a.parent<0&&a.lp&&ks.length+a.lp>2)slots=[...ang.slice(a.lp),...ang.slice(0,a.lp)];
+   ks.forEach((c,i)=>{const t=slots[i]*Math.PI/180,L=c.el=="H"?75:100;P[c.id]=[P[a.id][0]+L*Math.cos(t),P[a.id][1]+L*Math.sin(t)];place(c,slots[i])});LP[a.id]=slots.slice(ks.length)};place(r0,0);
+  const xs=Object.values(P).map(p=>p[0]),ys=Object.values(P).map(p=>p[1]);const w=Math.max(...xs)-Math.min(...xs)+120,h=Math.max(...ys)-Math.min(...ys)+120,sc=Math.min(1.3,560/w,400/h),mx=(Math.max(...xs)+Math.min(...xs))/2,my=(Math.max(...ys)+Math.min(...ys))/2;
+  for(const k in P)P[k]=[300+(P[k][0]-mx)*sc,215+(P[k][1]-my)*sc];return{P,LP,sc}}
+ function draw(bad=[]){const{P,LP,sc}=layout();let h="";const red="#e5484d";
+  S.atoms.forEach(a=>{if(a.parent<0)return;const[x1,y1]=P[a.parent],[x2,y2]=P[a.id],dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,nx=-dy/L*5,ny=dx/L*5,sx=dx/L*21,sy=dy/L*21,o=S.ord[a.id],isSel=sel&&sel.t=="b"&&sel.id==a.id;
+   h+=`<g class="bd" data-id="${a.id}"><line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="transparent" stroke-width="26"/>`+(o==1?[0]:o==2?[-1,1]:[-1.7,0,1.7]).map(f=>`<line x1="${x1+sx+nx*f}" y1="${y1+sy+ny*f}" x2="${x2-sx+nx*f}" y2="${y2-sy+ny*f}" stroke="${isSel?red:"#3b4166"}" stroke-width="3.2" stroke-linecap="round"/>`).join("")+"</g>"});
+  S.atoms.forEach(a=>{const[x,y]=P[a.id],isSel=sel&&sel.t=="a"&&sel.id==a.id,hl=bad.includes(a.id);(LP[a.id]||[]).forEach(t=>{t*=Math.PI/180;const cx=x+29*Math.cos(t),cy=y+29*Math.sin(t),px=-Math.sin(t)*6,py=Math.cos(t)*6;h+=`<circle cx="${cx+px}" cy="${cy+py}" r="3.8" fill="${isSel?red:"#7a4cff"}"/><circle cx="${cx-px}" cy="${cy-py}" r="3.8" fill="${isSel?red:"#7a4cff"}"/>`});
+   h+=`<g class="at" data-id="${a.id}"><circle cx="${x}" cy="${y}" r="22" fill="${a.el?(hl?"#ffe1e1":"#fff"):"#1f2540"}" stroke="${isSel?red:hl?red:a.el?"#c9cde3":"#1f2540"}" stroke-width="${isSel?4:2.5}"/>${a.el?`<text x="${x}" y="${y+7}" text-anchor="middle" font-size="21" font-weight="800" fill="${isSel?red:"#1f2540"}">${a.el}</text>`:""}`;
+   if(showFC&&a.el){const f=fcOf(a);h+=`<circle cx="${x+22}" cy="${y-20}" r="11" fill="${f>0?"#e5484d":f<0?"#3fa9ff":"#9aa0bd"}"/><text x="${x+22}" y="${y-15.5}" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">${f>0?"+"+f:f<0?"−"+(-f):"0"}</text>`}
+   if(showE&&a.el){const e=eAround(a),ok=a.el=="H"?e==2:(BY[a.el].p>2?e>=8:e==target(a));h+=`<rect x="${x-34}" y="${y+18}" width="30" height="16" rx="8" fill="${ok?"#18a058":"#f2b705"}"/><text x="${x-19}" y="${y+30}" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">${e}e⁻</text>`}h+="</g>"});
+  if(mol.q)h+=`<text x="588" y="28" font-size="17" font-weight="800" fill="#7a4cff" text-anchor="end">overall charge ${mol.q<0?(mol.q<-1?-mol.q:"")+"−":"+"}</text>`;if(solved)h=`<rect x="5" y="5" width="590" height="420" rx="14" fill="none" stroke="#18a058" stroke-width="5"/>`+h;svg.innerHTML=h;
+  q(".akF").innerHTML=fF(mol.f)+(mol.n?` <span class="mut" style="font-weight:600">(${mol.n})</span>`:"");q(".fcT").classList.toggle("on",showFC);q(".eT").classList.toggle("on",showE);
+  // sliders reflect the selection
+  if(sel&&sel.t=="a"){const a=A(sel.id);lsl.disabled=rsl.disabled=false;q(".lsll").textContent="electrons";lsl.min=0;lsl.step=2;lsl.max=Math.min(8,2*Math.max(0,6-deg(a)));lsl.value=2*a.lp;q(".lslv").textContent=2*a.lp;rsl.value=deg(a);q(".rslv").textContent=deg(a);q(".chel").disabled=false}
+  else if(sel&&sel.t=="b"){lsl.disabled=false;rsl.disabled=true;q(".lsll").textContent="bond type";lsl.min=1;lsl.max=3;lsl.step=1;lsl.value=S.ord[sel.id];q(".lslv").textContent=["","single","double","triple"][S.ord[sel.id]];q(".rslv").textContent="";q(".chel").disabled=true}
+  else{lsl.disabled=rsl.disabled=true;q(".lslv").textContent=q(".rslv").textContent="";q(".chel").disabled=true}
   const u=used(),nd=need(),mt=q(".meter");mt.querySelector("i").style.width=Math.min(100,u/nd*100)+"%";mt.classList.toggle("over",u>nd);mt.classList.toggle("full",u==nd);
-  q(".vc").innerHTML=`<b style="font-size:20px">${u}</b> / ${nd} placed <span class="mut">(${Object.entries(cnt).map(([e,n])=>`${n}×${VAL[e]}`).join(" + ")}${mol.q?(mol.q<0?" + ":" − ")+Math.abs(mol.q):""})</span>`;
-  bindPalette()}
- function bindPalette(){root.querySelectorAll(".pchip").forEach(ch=>{ch.onpointerdown=e=>{if(ch.classList.contains("done"))return;e.preventDefault();const el=ch.dataset.e;let moved=false,ghost=null;const sx=e.clientX,sy=e.clientY;
-  const mv=ev=>{if(Math.hypot(ev.clientX-sx,ev.clientY-sy)>6){moved=true;if(!ghost){ghost=ch.cloneNode(true);ghost.style.cssText="position:fixed;pointer-events:none;z-index:99;opacity:.85";document.body.appendChild(ghost)}ghost.style.left=ev.clientX-29+"px";ghost.style.top=ev.clientY-29+"px"}};
-  const up=ev=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);ghost&&ghost.remove();if(moved){const r=svg.getBoundingClientRect();if(ev.clientX>=r.left&&ev.clientX<=r.right&&ev.clientY>=r.top&&ev.clientY<=r.bottom){const p=toSvg(ev);addAtom(el,p.x,p.y,null)}}else addAtom(el,null,null,sel)};
-  addEventListener("pointermove",mv);addEventListener("pointerup",up)}})}
- const toSvg=ev=>{const r=svg.getBoundingClientRect();return{x:(ev.clientX-r.left)*600/r.width,y:(ev.clientY-r.top)*430/r.height}};
- svg.addEventListener("contextmenu",e=>{const g=e.target.closest(".at");if(g){e.preventDefault();const a=S.atoms.find(x=>x.id==+g.dataset.id);if(a.lp){snap();a.lp--;draw()}}});
- svg.addEventListener("pointerdown",e=>{const g=e.target.closest(".at"),bd=e.target.closest(".bd");if(e.button==2)return;
-  if(g){const a=S.atoms.find(x=>x.id==+g.dataset.id);const st=toSvg(e);let moved=false,snapped=false;
-   const mv=ev=>{const p=toSvg(ev);if(!moved&&Math.hypot(p.x-st.x,p.y-st.y)>4){moved=true}if(moved){if(!snapped){snap();snapped=true}a.x=Math.max(20,Math.min(580,p.x));a.y=Math.max(20,Math.min(410,p.y));draw()}};
-   const up=()=>{removeEventListener("pointermove",mv);removeEventListener("pointerup",up);if(!moved)atomClick(a)};addEventListener("pointermove",mv);addEventListener("pointerup",up);return}
-  if(bd){const b=S.bonds[+bd.dataset.i];snap();if(mode=="erase")S.bonds.splice(+bd.dataset.i,1);else b.o=b.o%3+1;draw();return}
-  sel=null;draw()});
- function atomClick(a){if(mode=="bond"){if(sel==null||sel==a.id){sel=a.id;draw();return}
-   const ex=S.bonds.find(b=>(b.a==sel&&b.b==a.id)||(b.b==sel&&b.a==a.id));snap();if(ex)ex.o=ex.o%3+1;else S.bonds.push({a:sel,b:a.id,o:1});sel=null;draw();return}
-  snap();if(mode=="lp+")a.lp=Math.min(4,a.lp+1);if(mode=="lp-")a.lp=Math.max(0,a.lp-1);if(mode=="fc+")a.fc=Math.min(3,a.fc+1);if(mode=="fc-")a.fc=Math.max(-3,a.fc-1);
-  if(mode=="erase"){S.atoms=S.atoms.filter(x=>x!=a);S.bonds=S.bonds.filter(b=>b.a!=a.id&&b.b!=a.id);if(sel==a.id)sel=null}draw()}
+  q(".vc").innerHTML=`Valence electrons: <b>${u}</b> / ${nd} (${Object.entries(formulaCount(mol.f)).map(([e,n])=>`${n}×${VAL[e]}`).join(" + ")}${mol.q?(mol.q<0?" + ":" − ")+Math.abs(mol.q):""})`}
+ const tap=(t,id)=>{const now=Date.now();const dbl=t=="a"&&lastTap.id==id&&now-lastTap.t<380;lastTap={t:now,id:t=="a"?id:null};sel={t,id};draw();if(dbl)picker()};
+ svg.addEventListener("pointerup",e=>{const g=e.target.closest(".at"),b=e.target.closest(".bd");if(g)tap("a",+g.dataset.id);else if(b)tap("b",+b.dataset.id);else{sel=null;draw()}});
+ rsl.oninput=()=>{if(!sel||sel.t!="a")return;const a=A(sel.id),want=+rsl.value;let d=deg(a);if(want==d)return;snap();
+  while(d<want){const id=Math.max(...S.atoms.map(x=>x.id))+1;S.atoms.push({id,el:null,parent:a.id,lp:0});S.ord[id]=1;d++}
+  while(d>want){const leaf=[...kids(a.id)].reverse().sort((x,y)=>(x.el?1:0)-(y.el?1:0)).find(k=>!kids(k.id).length);if(!leaf)break;S.atoms=S.atoms.filter(x=>x!=leaf);delete S.ord[leaf.id];d--}
+  if(2*a.lp>2*Math.max(0,6-deg(a)))a.lp=Math.max(0,6-deg(a));draw()};
+ lsl.oninput=()=>{if(!sel)return;snap();if(sel.t=="a")A(sel.id).lp=+lsl.value/2;else S.ord[sel.id]=+lsl.value;draw()};
+ function picker(){if(!sel||sel.t!="a")return;const md=$("#modal");md.style.inset="8% 12% auto";md.innerHTML=`<h3 style="margin-top:0">Choose an element</h3><div class="pk" style="display:grid;grid-template-columns:repeat(18,1fr);gap:3px"></div><p><button class="btn sec cx">Cancel</button> <button class="btn sec blank">Make blank</button></p>`;
+  EL.filter(e=>e.z<=86&&e.g).forEach(e=>{const d=document.createElement("div");d.className="el";d.style.gridRow=e.row;d.style.gridColumn=e.col;d.style.background=COL[e.cat];d.innerHTML=`<b>${e.s}</b>${e.z}`;d.onclick=()=>{snap();A(sel.id).el=e.s;close();draw()};md.querySelector(".pk").appendChild(d)});
+  const close=()=>{md.classList.add("hidden");md.style.inset=""};md.querySelector(".cx").onclick=close;md.querySelector(".blank").onclick=()=>{snap();A(sel.id).el=null;close();draw()};md.classList.remove("hidden")}
+ q(".chel").onclick=picker;q(".und").onclick=()=>{if(hist.length){S=JSON.parse(hist.pop());sel=null;draw()}};q(".rst").onclick=()=>{snap();S=start();sel={t:"a",id:0};solved=false;q(".after").innerHTML="";msg([]);draw()};
+ q(".fcT").onclick=()=>{showFC=!showFC;draw()};q(".eT").onclick=()=>{showE=!showE;draw()};
+ const helpTxt="<b>How it works (same as Aktiv's Free Draw tool):</b> tap an atom or bond to select it (it turns red). The <b>right slider</b> sets how many atoms bond to the selected atom; new blank atoms appear automatically. The <b>left slider</b> sets nonbonding electrons (shown as dot pairs), or the bond type when a bond is selected. Double-tap an atom or press <b>Change Element</b> to pick an element. FC± shows the calculated formal charges and e⁻ shows each atom's electron count. 🗑 resets to 2 atoms. Check and 💡 Hint are Spectra Bench extras.";
+ q(".hlp").onclick=()=>msg([["h",helpTxt]]);
+ if(!localStorage.sbTip){const tp=q(".tip");tp.classList.remove("hidden");tp.innerHTML=`<b>First time?</b> 1) Tap an atom (it turns red). 2) Drag the right slider to add bonds. 3) Double-tap an atom to choose its element. 4) Drag the left slider for lone pairs. <button class="btn sm gotit">Got it</button>`;tp.querySelector(".gotit").onclick=()=>{localStorage.sbTip=1;tp.classList.add("hidden")}}
+ const pickMol=m=>{mol=m;reset();q(".after").innerHTML="";msg([]);draw();opts.onMol&&opts.onMol(mol)};
+ if(q(".lm"))q(".lm").onchange=e=>pickMol(MOLS.find(m=>m.f==e.target.value));
+ if(q(".prac"))q(".prac").onclick=()=>{practice=true;pScore=[0,0];const m=rnd(MOLS.filter(x=>x!=mol));q(".lm").value=m.f;pickMol(m);msg([["h","🎲 Practice mode: draw each molecule. When you get it, a new one loads."]]);q(".pscore").textContent="0 / 0"};
  const sig=list=>list.map(a=>a.el+":"+a.nb.sort().join(",")).sort().join("|");
  const refSig=()=>sig(mol.sk.map((x,i)=>({el:x[0],nb:mol.sk.filter((y,j)=>j==x[1]||y[1]==i).map(y=>y[0])})));
- const mySig=()=>sig(S.atoms.map(a=>({el:a.el,nb:bondsOf(a.id).map(b=>S.atoms.find(x=>x.id==(b.a==a.id?b.b:b.a)).el)})));
- function skeletonText(){const cs=mol.sk.map((x,i)=>i).filter(i=>isCentral(mol.sk,i));if(cs.length==1)return`Put <b>${mol.sk[0][0]}</b> in the center and bond every other atom to it.`;
-  return"Chain: "+mol.sk.filter((x,i)=>isCentral(mol.sk,i)).map(x=>x[0]).join("–")+", with each outer atom on: "+mol.sk.map((x,i)=>x[1]>=0&&!isCentral(mol.sk,i)?`${x[0]}→${mol.sk[x[1]][0]}`:null).filter(Boolean).join(", ")+"."}
- function audit(){const errs=[],bad=[];const cnt=formulaCount(mol.f),have={};S.atoms.forEach(a=>have[a.el]=(have[a.el]||0)+1);
-  if(JSON.stringify(Object.entries(cnt).sort())!=JSON.stringify(Object.entries(have).sort())){return{stage:"atoms",errs:[`You need exactly: ${Object.entries(cnt).map(([e,n])=>n+" "+e).join(", ")}. Check the palette counts.`],bad}}
-  if(S.bonds.length<S.atoms.length-1)return{stage:"connect",errs:["Not every atom is connected yet. A molecule with "+S.atoms.length+" atoms needs at least "+(S.atoms.length-1)+" bonds."],bad};
-  if(mySig()!=refSig())return{stage:"skeleton",errs:["The skeleton (which atom bonds to which) isn't right. Hint: "+skeletonText()],bad};
-  const u=used(),nd=need();if(u!=nd)errs.push(u<nd?`Electron count: ${u} of ${nd} placed. Add ${nd-u} more (as lone pairs or multiple bonds).`:`Too many electrons: ${u} placed, but only ${nd} are available. Remove ${(u-nd)/2} pair(s).`);
-  S.atoms.forEach(a=>{const e=eAround(a),p=BY[a.el].p;let m=null;if(a.el=="H"){if(e!=2)m=`H has ${e} e⁻; it needs exactly 2 (one bond, no lone pairs).`}
-   else if(a.el=="B"||a.el=="Be"){if(e>8||(e!=target(a)&&e!=8))m=`${a.el} has ${e} e⁻ (it is usually happy with ${target(a)}).`}
-   else if(p<=2){if(e!=8)m=`${a.el} has ${e} e⁻. Period-2 atoms need exactly 8 — ${e<8?"add a lone pair or a multiple bond":"remove electrons"}.`}else if(e<8)m=`${a.el} has only ${e} e⁻ (needs at least 8).`;if(m){errs.push(m);bad.push(a.id)}});
+ const mySig=()=>sig(S.atoms.map(a=>({el:a.el,nb:bondsOf(a.id).map(b=>A(b.a==a.id?b.b:b.a).el)})));
+ function skeletonText(){const cs=mol.sk.map((x,i)=>i).filter(i=>isCentral(mol.sk,i));if(cs.length==1)return`Make <b>${mol.sk[0][0]}</b> the central atom: select it and set the right slider to ${mol.sk.length-1} bonds, then give each new atom its element.`;
+  return"Chain the central atoms "+mol.sk.filter((x,i)=>isCentral(mol.sk,i)).map(x=>x[0]).join("–")+", then attach "+mol.sk.map((x,i)=>x[1]>=0&&!isCentral(mol.sk,i)?`${x[0]} to ${mol.sk[x[1]][0]}`:null).filter(Boolean).join(", ")+"."}
+ function audit(){const errs=[],bad=[];const blanks=S.atoms.filter(a=>!a.el);if(blanks.length)return{stage:"blank",errs:[`${blanks.length} atom${blanks.length>1?"s are":" is"} still blank (black). Double-tap each one, or use Change Element.`],bad:blanks.map(a=>a.id)};
+  const cnt=formulaCount(mol.f),have={};S.atoms.forEach(a=>have[a.el]=(have[a.el]||0)+1);
+  if(JSON.stringify(Object.entries(cnt).sort())!=JSON.stringify(Object.entries(have).sort()))return{stage:"atoms",errs:[`${fF(mol.f)} needs exactly ${Object.entries(cnt).map(([e,n])=>n+" "+e).join(", ")}. You have ${Object.entries(have).map(([e,n])=>n+" "+e).join(", ")}.`],bad};
+  if(mySig()!=refSig())return{stage:"skeleton",errs:["The connectivity isn't right. "+skeletonText()],bad};
+  const u=used(),nd=need();if(u!=nd)errs.push(u<nd?`Electron count: ${u} of ${nd} placed. Add ${nd-u} more (as lone pairs or multiple bonds).`:`Too many electrons: ${u} placed, only ${nd} available. Remove ${u-nd}.`);
+  S.atoms.forEach(a=>{const e=eAround(a),p=BY[a.el].p;let m=null;if(a.el=="H"){if(e!=2)m=`H has ${e} e⁻; it needs exactly 2 (one bond, no lone pairs).`}else if(a.el=="B"||a.el=="Be"){if(e>8||(e!=target(a)&&e!=8))m=`${a.el} has ${e} e⁻ (usually ${target(a)}).`}
+   else if(p<=2){if(e!=8)m=`${a.el} has ${e} e⁻. Period-2 atoms need exactly 8: ${e<8?"add electrons or raise a bond order":"remove electrons"}.`}else if(e<8)m=`${a.el} has only ${e} e⁻ (needs at least 8).`;if(m){errs.push(m);bad.push(a.id)}});
   if(errs.length)return{stage:"octet",errs,bad};
-  const wrong=S.atoms.filter(a=>a.fc!=fcOf(a));if(wrong.length)return{stage:"fc",errs:[`Formal charge is off on: ${wrong.map(a=>a.el).join(", ")}. Use FC = V − L − ½B and mark it with ⊕/⊖.`],bad:wrong.map(a=>a.id)};
-  const tot=S.atoms.reduce((s,a)=>s+Math.abs(a.fc),0);if(ref&&tot>ref.tot)return{stage:"minfc",errs:[`This is a valid structure, but Σ|FC| = ${tot}, and ${ref.tot} is possible. ${BY[mol.sk[0][0]].p>2?"The central atom is in period 3, so it can expand its octet: turn O⁻ lone pairs into double bonds.":"Try moving electrons into multiple bonds."}`],bad:S.atoms.filter(a=>a.fc).map(a=>a.id)};
-  const sec=+S.atoms.reduce((s,a)=>s+Math.max(0,-a.fc)*(4-BY[a.el].en),0).toFixed(3);if(ref&&tot==ref.tot&&sec>ref.sec)return{stage:"minfc",errs:["Valid, but a better structure puts the negative formal charge on the more electronegative atom (O rather than "+mol.sk[0][0]+")."],bad:S.atoms.filter(a=>a.fc<0).map(a=>a.id)};
+  const tot=S.atoms.reduce((s,a)=>s+Math.abs(fcOf(a)),0);if(ref&&tot>ref.tot)return{stage:"minfc",errs:[`Valid, but Σ|FC| = ${tot}, and ${ref.tot} is possible. ${BY[mol.sk[0][0]].p>2?"The central atom is in period 3, so it can expand its octet: turn O⁻ lone pairs into double bonds.":"Move electrons into multiple bonds."} (Turn on FC± to see them.)`],bad:S.atoms.filter(a=>fcOf(a)).map(a=>a.id)};
+  const sec=+S.atoms.reduce((s,a)=>s+Math.max(0,-fcOf(a))*(4-BY[a.el].en),0).toFixed(3);if(ref&&tot==ref.tot&&sec>ref.sec)return{stage:"minfc",errs:["Valid, but a better structure puts the negative formal charge on the more electronegative atom."],bad:S.atoms.filter(a=>fcOf(a)<0).map(a=>a.id)};
   return{stage:"ok",errs:[],bad}}
- q(".hint").onclick=()=>{const A=audit();const tips={atoms:"Start by adding all the atoms. The least electronegative non-H atom is usually central: "+mol.sk[0][0]+".",connect:skeletonText(),skeleton:skeletonText(),
-  octet:used()<need()?`Give the outer atoms lone pairs until each has 8 (H gets none), then put any leftovers on the central atom. You have ${need()-used()} e⁻ left.`:used()>need()?"Too many electrons: remove lone pairs, starting with the central atom.":"Electrons are right, but an atom is short. Turn a lone pair on an outer atom into a bond: remove that pair (•• −), then click the bond to raise its order.",
-  fc:"FC = V − L − ½B. Example: O with 3 lone pairs and 1 bond is 6 − 6 − 1 = −1.",minfc:"Lower the formal charges: a structure with more zeros (and − on the more electronegative atom) is better.",ok:"Looks good. Press Check!"};
-  msg([["h","💡 "+tips[A.stage]]]);draw(A.bad)};
- q(".chkb").onclick=()=>{const A=audit();if(A.stage!="ok"){msg(A.errs.map(e=>["e","✘ "+e]));draw(A.bad);svg.classList.remove("shake");void svg.offsetWidth;svg.classList.add("shake");opts.onAttempt&&opts.onAttempt(false);return}
-  const key=S.bonds.map(b=>[Math.min(b.a,b.b),Math.max(b.a,b.b),b.o].join("-")).sort().join(";");const isNew=!found.has(key);found.add(key);solved=true;draw();confetti(40);scoreAnswer(true);
-  const nres=ref?ref.count:1;let txt=`<b>Correct!</b> ${mol.note||""}`;if(nres>1)txt+=`<br>Resonance: ${found.size} of ${nres} equivalent structures found.${found.size<nres?" Want another? Move a double bond (fix the lone pairs and charges), then Check.":" All found! The real species is their average."}${!isNew?" (You already drew this one.)":""}`;
-  msg([["g","✔ "+txt]]);opts.onSolved&&opts.onSolved(mol,found.size,nres);if(!opts.noFollow)followUp()};
+ q(".hint").onclick=()=>{const Au=audit();const tips={blank:"Give every atom an element: double-tap it (or Change Element). Start with the central atom, "+mol.sk[0][0]+".",atoms:skeletonText(),skeleton:skeletonText(),
+  octet:used()<need()?`Select each outer atom and raise its electrons (left slider) until it has 8 (H gets none). Put leftovers on the central atom. ${need()-used()} e⁻ left.`:used()>need()?"Too many electrons: lower the left slider on the central atom first.":"The count is right, but an atom is short. Lower an outer atom's electrons by 2, then select its bond and set the type to double.",
+  minfc:"Turn on FC± to see the charges. Lower them by turning lone pairs into multiple bonds.",ok:"Looks right. Press Check (or Done)!"};msg([["h","💡 "+tips[Au.stage]]]);draw(Au.bad)};
+ const check=()=>{const Au=audit();if(Au.stage!="ok"){msg(Au.errs.map(e=>["e","✘ "+e]));draw(Au.bad);svg.classList.remove("shake");void svg.offsetWidth;svg.classList.add("shake");if(practice){pScore[1]++;q(".pscore").textContent=`${pScore[0]} / ${pScore[1]}`}opts.onAttempt&&opts.onAttempt(false);return false}
+  const key=S.atoms.filter(a=>a.parent>=0).map(a=>a.parent+"-"+a.id+":"+S.ord[a.id]+":"+a.lp).sort().join(";")+"|"+S.atoms[0].lp;const isNew=!found.has(key);found.add(key);solved=true;sel=null;draw();confetti(40);scoreAnswer(true);
+  const nres=ref?ref.count:1;let t=`<b>Correct!</b> ${mol.note||""}`;if(nres>1)t+=`<br>Resonance: ${found.size} of ${nres} equivalent structures found.${found.size<nres?" To draw another, move a double bond (and its lone pairs), then Check.":" All found! The real species is their average."}${!isNew?" (You already drew this one.)":""}`;
+  msg([["g","✔ "+t]]);if(practice){pScore[0]++;pScore[1]++;q(".pscore").textContent=`${pScore[0]} / ${pScore[1]}`;setTimeout(()=>{const m=rnd(MOLS.filter(x=>x!=mol));q(".lm").value=m.f;pickMol(m)},1600);return true}
+  opts.onSolved&&opts.onSolved(mol,found.size,nres);if(!opts.noFollow)followUp();return true};
+ q(".chkb").onclick=check;q(".done").onclick=()=>{if(check()&&opts.onDone)opts.onDone()};
  function followUp(){const G=mol.geo,box=q(".after");const qs=(opts.follow||["eg","mg","ang","pol"]).filter(k=>k!="pol"||G.pol);const L={eg:["Electron geometry",EGS],mg:["Molecular geometry",MGS],ang:["Bond angle",ANGS],pol:["Polar or nonpolar?",["polar","nonpolar"]]};
-  box.innerHTML=`<div class="card popin"><b>Next${G.about?" (around "+G.about+")":""}</b>`+qs.map(k=>`<p>${L[k][0]}<br>${L[k][1].map(o=>`<button class="btn sm sec fq" data-k="${k}">${o}</button>`).join("")}<span class="r" data-r="${k}"></span></p>`).join("")+`<button class="btn sm sec sol">📘 Solution</button><div class="solbox"></div></div>`;
+  box.innerHTML=`<div class="card popin"><b>Follow-up${G.about?" (around "+G.about+")":""}</b>`+qs.map(k=>`<p>${L[k][0]}<br>${L[k][1].map(o=>`<button class="btn sm sec fq" data-k="${k}">${o}</button>`).join("")}<span data-r="${k}"></span></p>`).join("")+`<button class="btn sm sec sol">📘 Solution</button><div class="solbox"></div></div>`;
   box.querySelectorAll(".fq").forEach(b=>b.onclick=()=>{const k=b.dataset.k,ok=b.textContent==G[k];scoreAnswer(ok);box.querySelectorAll(`.fq[data-k=${k}]`).forEach(x=>{x.disabled=true;if(x.textContent==G[k])x.classList.replace("sec","ok");else if(x==b)x.classList.replace("sec","bad")});
-   box.querySelector(`[data-r=${k}]`).innerHTML=`<div class="msg ${ok?"g":"e"}">${ok?"✔ Correct!":"✘ "+G[k]+"."} ${k=="pol"?(G.pol=="nonpolar"?"The shape is symmetric, so the bond dipoles cancel.":"The bond dipoles don't cancel, so there is a net dipole."):k=="ang"&&G.ang.includes("<")?"Lone pairs squeeze the angle.":""}</div>`;opts.onAttempt&&opts.onAttempt(ok)});
-  box.querySelector(".sol").onclick=()=>{box.querySelector(".solbox").innerHTML=solutionSVG(mol)+(window.vseprMini?vseprMini(mol):"")}}
+   box.querySelector(`[data-r=${k}]`).innerHTML=`<div class="msg ${ok?"g":"e"}">${ok?"✔ Correct!":"✘ "+G[k]+"."} ${k=="pol"?(G.pol=="nonpolar"?"Symmetric shape, so the bond dipoles cancel.":"The bond dipoles don't cancel, so there is a net dipole."):k=="ang"&&G.ang.includes("<")?"Lone pairs squeeze the angle.":""}</div>`;opts.onAttempt&&opts.onAttempt(ok)});
+  box.querySelector(".sol").onclick=()=>{box.querySelector(".solbox").innerHTML=solutionSVG(mol)+vseprMini(mol)}}
  reset();draw();return{get mol(){return mol}}}
 function solutionSVG(m){const r=solveRef(m);if(!r)return"";const P=treeLayout(m.sk,170,120,r.lp);let h="";
  r.bonds.forEach((b,k)=>{const[x1,y1]=P[b[0]],[x2,y2]=P[b[1]],dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy),nx=-dy/L*4,ny=dx/L*4,sx=dx/L*14,sy=dy/L*14,o=r.ord[k];(o==1?[0]:o==2?[-1,1]:[-1.7,0,1.7]).forEach(f=>h+=`<line x1="${x1+sx+nx*f}" y1="${y1+sy+ny*f}" x2="${x2-sx+nx*f}" y2="${y2-sy+ny*f}" stroke="#3b4166" stroke-width="2.4"/>`)});
