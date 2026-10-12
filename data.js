@@ -77,7 +77,7 @@ const NAMES=[
 ["HCl(aq)","hydrochloric acid",["HCl"]],["HBr(aq)","hydrobromic acid",["HBr"]],["H2S(aq)","hydrosulfuric acid",["H2S"]],["HNO3","nitric acid"],["HNO2","nitrous acid"],
 ["H2SO4","sulfuric acid"],["H2SO3","sulfurous acid"],["H3PO4","phosphoric acid"],["H3PO3","phosphorous acid"],["HClO4","perchloric acid"],["HClO","hypochlorous acid"],
 ["HC2H3O2","acetic acid",["CH3COOH"]]];
-const POLY=[["NH4+","ammonium"],["NO3−","nitrate"],["NO2−","nitrite"],["SO4²−","sulfate"],["SO3²−","sulfite"],["PO4³−","phosphate"],["PO3³−","phosphite"],["CO3²−","carbonate"],["HCO3−","hydrogen carbonate"],["OH−","hydroxide"],["C2H3O2− (CH3COO−)","acetate"],["O2²−","peroxide"],["Hg2²+","mercury(I)"],["ClO−","hypochlorite"],["ClO2−","chlorite"],["ClO3−","chlorate"],["ClO4−","perchlorate"],["MnO4−","permanganate"],["CrO4²−","chromate"],["Cr2O7²−","dichromate"],["CN−","cyanide"]];
+const POLY=[["NH4+","ammonium"],["NO3−","nitrate"],["NO2−","nitrite"],["SO4²−","sulfate"],["SO3²−","sulfite"],["PO4³−","phosphate"],["PO3³−","phosphite"],["CO3²−","carbonate"],["HCO3−","hydrogen carbonate"],["OH−","hydroxide"],["C2H3O2− (CH3COO−)","acetate"],["O2²−","peroxide"],["Hg2²+","mercury(I)"],["ClO−","hypochlorite"],["ClO2−","chlorite"],["ClO3−","chlorate"],["ClO4−","perchlorate"],["MnO4−","permanganate"],["CrO4²−","chromate"],["Cr2O7²−","dichromate"],["CN−","cyanide"],["N3−","azide"]];
 
 // Lewis molecules. sk = skeleton [el,parentIdx]; geo per central atom(s); refFC = min Σ|FC|; res = # resonance forms
 const MOLS=[
@@ -105,6 +105,9 @@ const MOLS=[
 {f:"O3",q:0,sk:[["O",-1],["O",0],["O",0]],refFC:2,res:2,geo:{eg:"trigonal planar",mg:"bent",ang:"<120",pol:"polar"}},
 {f:"NO2−",q:-1,sk:[["N",-1],["O",0],["O",0]],refFC:1,res:2,geo:{eg:"trigonal planar",mg:"bent",ang:"<120",pol:null}},
 {f:"NO3−",q:-1,sk:[["N",-1],["O",0],["O",0],["O",0]],refFC:3,res:3,geo:{eg:"trigonal planar",mg:"trigonal planar",ang:"120",pol:null}},
+{f:"CH3Br",n:"bromomethane",q:0,sk:[["C",-1],["H",0],["H",0],["H",0],["Br",0]],refFC:0,res:1,geo:{eg:"tetrahedral",mg:"tetrahedral",ang:"109.5",pol:"polar"}},
+{f:"N3−",n:"azide ion",q:-1,sk:[["N",-1],["N",0],["N",0]],refFC:3,res:3,geo:{eg:"linear",mg:"linear",ang:"180",pol:null}},
+{f:"SO4²−",n:"sulfate ion",q:-2,sk:[["S",-1],["O",0],["O",0],["O",0],["O",0]],refFC:2,res:6,geo:{eg:"tetrahedral",mg:"tetrahedral",ang:"109.5",pol:null},note:"Expanded octet on S (period 3) minimizes formal charge."},
 {f:"CO3²−",q:-2,sk:[["C",-1],["O",0],["O",0],["O",0]],refFC:2,res:3,geo:{eg:"trigonal planar",mg:"trigonal planar",ang:"120",pol:null}}];
 
 const CARDS=[
