@@ -3,13 +3,15 @@ const TOOLS=[["Lab","🧪 Lab (all visuals)"],["Drill","🎯 Drill"],["Prep","�
 const SIDE=JSON.parse(localStorage.sbSide||'{"3":true,"4":true}');
 function renderSide(){const [t,sub]=decodeURIComponent(location.hash.slice(1)||"Map").split("/");const cur=t=="Notes"?(sub||""):null;const ic={locked:"🔒",inprog:"●",mastered:"✓",skipped:"⏭"};
  const curCh=cur&&LESSONS.find(l=>l.id==cur);if(curCh)SIDE[curCh.ch]=true;
- $("#side").innerHTML=`<a class="sItem ${t=="Map"?"on":""}" href="#Map">🗺️ Course map</a>`+[3,4].map(ch=>{const ls=LESSONS.map((l,i)=>[l,i]).filter(([l])=>l.ch==ch),m=ls.filter(([l,i])=>statusOf(i)=="mastered").length;
-  return`<div class="sMod ${SIDE[ch]?"open":""}"><button class="sHead" data-ch="${ch}" aria-expanded="${!!SIDE[ch]}"><span class="car">▸</span> Chapter ${ch}<span class="sCnt">${m}/${ls.length}</span></button><div class="sSub">${ls.map(([l,i])=>{const st=statusOf(i);
-   return`<a class="sLes ${st} ${cur==l.id?"on":""}" href="#Notes/${l.id}" title="${l.g}"><span class="sIc">${ic[st]||"●"}</span><span class="sT">${l.t}</span>${st=="locked"?`<button class="sSkip" data-i="${i}" title="Skip ahead to this lesson">⏭</button>`:""}</a>`}).join("")}</div></div>`}).join("")+
-  `<div class="sMod open"><div class="sHead static">🧰 Tools</div><div class="sSub">${TOOLS.map(([k,l])=>`<a class="sLes tool ${t==k?"on":""}" href="#${k}">${l}</a>`).join("")}</div></div>`;
+ const tot=LESSONS.reduce((a,l,i)=>a+pctOf(i),0)/LESSONS.length;$("#side").innerHTML=`<div class="sTop"><b>Course</b><button id="sideMin" title="Minimize course tray">«</button></div><div class="sBar"><i style="width:${Math.round(tot*100)}%;background:${ringCol(tot)}"></i><span>${Math.round(tot*100)}% complete</span></div><a class="sItem ${t=="Map"?"on":""}" href="#Map">🗺️ Course map</a>`+[3,4].map(ch=>{const ls=LESSONS.map((l,i)=>[l,i]).filter(([l])=>l.ch==ch),m=ls.filter(([l,i])=>statusOf(i)=="mastered").length;
+  return`<div class="sMod ${SIDE[ch]?"open":""}"><button class="sHead" data-ch="${ch}" aria-expanded="${!!SIDE[ch]}"><span class="car">▸</span> Chapter ${ch}<span class="sCnt">${m}/${ls.length}</span>${ring(ls.reduce((a,[l,i])=>a+pctOf(i),0)/ls.length,22)}</button><div class="sSub">${ls.map(([l,i])=>{const st=statusOf(i);
+   return`<a class="sLes ${st} ${cur==l.id?"on":""}" href="#Notes/${l.id}" title="${l.g}">${ring(pctOf(i))}<span class="sT">${l.t}</span></a>`}).join("")}</div></div>`}).join("");
  $$("#side .sHead[data-ch]").forEach(b=>b.onclick=()=>{SIDE[b.dataset.ch]=!SIDE[b.dataset.ch];localStorage.sbSide=JSON.stringify(SIDE);renderSide()});
+$("#sideMin").onclick=()=>setMin(true);
  $$("#side .sSkip").forEach(b=>b.onclick=e=>{e.preventDefault();e.stopPropagation();const i=+b.dataset.i;LS(LESSONS[i].id).open=true;save();toast("⏭ Skipped ahead to "+LESSONS[i].t);location.hash="Notes/"+LESSONS[i].id;renderSide()});
  $$("#side a").forEach(a=>a.addEventListener("click",()=>document.body.classList.remove("sideOpen")))}
+function setMin(v){document.body.classList.toggle("sideMin",v);localStorage.sbSideMin=v?1:"";}setMin(!!localStorage.sbSideMin);$("#sideOpen").onclick=()=>setMin(false);
+function renderNav(){const [t]=(location.hash.slice(1)||"Map").split("/");$$("#topnav a").forEach(a=>a.classList.toggle("on",a.getAttribute("href")=="#"+t))}addEventListener("hashchange",renderNav);setTimeout(renderNav);
 $("#sideBtn").onclick=()=>document.body.classList.toggle("sideOpen");$("#sideShade").onclick=()=>document.body.classList.remove("sideOpen");
 // tray
 function openTray(){$("#tray").classList.add("open");document.body.classList.add("trayOpen");$("#tray").setAttribute("aria-hidden","false");$("#trayTab").textContent="Close ◂";setTimeout(drawArrows,300)}
@@ -37,8 +39,11 @@ $("#tableBtn").onclick=()=>{const m=$("#modal");const cols=[["z","#"],["s","Symb
 // ---------- course state ----------
 const LS=id=>ST.les[id]||(ST.les[id]={hist:[],run:0,status:"new"});
 const lesIdx=id=>LESSONS.findIndex(l=>l.id==id);
-function isOpen(i){if(i<=0)return true;const s=LS(LESSONS[i].id);if(s.open||s.status!="new")return true;const p=LS(LESSONS[i-1].id);return p.status=="mastered"||p.status=="skipped"}
-function statusOf(i){const s=LS(LESSONS[i].id);if(s.status=="mastered")return"mastered";if(s.status=="skipped")return"skipped";if(!isOpen(i))return"locked";return"inprog"}
+function isOpen(i){return true;const s=LS(LESSONS[i].id);if(s.open||s.status!="new")return true;const p=LS(LESSONS[i-1].id);return p.status=="mastered"||p.status=="skipped"}
+function statusOf(i){const s=LS(LESSONS[i].id);if(s.status=="mastered")return"mastered";return s.hist.length?"inprog":"new"}
+function pctOf(i){const s=LS(LESSONS[i].id);if(s.status=="mastered")return 1;const g=s.hist.slice(-5).filter(Boolean).length;return Math.min(.9,Math.max(g/5,s.run/5))}
+const ringCol=p=>p>=1?"#18a058":p>=.25?"#f2b705":"#e5484d";
+const ring=(p,sz=20)=>`<span class="ring" style="width:${sz}px;height:${sz}px;background:conic-gradient(${ringCol(p)} ${Math.round(p*360)}deg,${p<.25?"#f6c9cb":"#e3e5ee"} 0)" title="${Math.round(p*100)}% complete"></span>`;
 function record(id,ok){const s=LS(id);s.hist.push(!!ok);s.hist=s.hist.slice(-20);s.run=ok?s.run+1:0;if(s.status=="new"||s.status=="skipped")s.status=s.status=="skipped"?"skipped":"started";
  const last=s.hist.slice(-5),good=last.filter(Boolean).length;let just=false;if(s.status!="mastered"&&((last.length>=5&&good>=4)||s.run>=5)){s.status="mastered";just=true}save();return just}
 function skipAhead(i){const s=LS(LESSONS[i].id);if(s.status!="mastered")s.status="skipped";const n=LESSONS[i+1];if(n)LS(n.id).open=true;save()}
@@ -59,7 +64,7 @@ function Notes(m,id){let i=lesIdx(id);if(i<0){i=LESSONS.findIndex((l,k)=>statusO
  m.querySelector(".sk").onclick=()=>{LS(L.id).open=true;save();route()};m.querySelector(".cu").onclick=()=>location.hash="Notes/"+LESSONS[Math.max(0,cu)].id;setHelp(L.t,"Locked. Skip ahead or finish the previous lesson first.");return}
  const tasks=LTASKS[L.id];
  m.innerHTML=`<div class="lessonHead"><span class="chip">Ch ${L.ch} · Lesson ${i+1}/${LESSONS.length}</span><h2 style="margin:0">${L.t}</h2><span class="mastery"></span><span style="margin-left:auto"></span>
-  <button class="btn sec sm prev" ${i==0?"disabled":""}>◀ Prev</button><button class="btn sec sm skip">⏭ Skip ahead</button><button class="btn sm nextL">Next lesson ▶</button></div>
+  <button class="btn sec sm prev" ${i==0?"disabled":""}>◀ Prev</button><button class="btn sm nextL">Next lesson ▶</button></div>
   <p class="mut">Study guide: “${L.g}”</p>
   <div class="card"><h3>👣 How to do it</h3><p><b>Worked example:</b> ${L.ex}</p><ul class="steps">${L.steps.map(s=>`<li>${s}</li>`).join("")}</ul><button class="btn sm stepb">Next step ▶</button><button class="btn sec sm allb">Show all</button></div>
   ${L.vis&&L.vis!="lewis"?`<div class="card"><h3>👀 See it</h3><div class="vis visbox"></div></div>`:""}
@@ -67,10 +72,10 @@ function Notes(m,id){let i=lesIdx(id);if(i<0){i=LESSONS.findIndex((l,k)=>statusO
   <div class="card"><h3>🎯 Practice <span class="mut" style="font-size:14px">(mastery: 4 of your last 5, or 5 in a row)</span></h3><div class="pq"></div><button class="btn nextq">Next question ▶</button></div>
   <div class="card vids"><h3>📺 Videos</h3>${L.vids.map(v=>`<a href="https://www.youtube.com/watch?v=${v}" target="_blank" rel="noopener">${V[v][0]} <span class="mut">· ${V[v][1]}</span></a>`).join("")}</div>`;
  setHelp(L.t,L.help+`<hr style="border:0;border-top:1px solid #dcd6ff"><span class="mut">Click any element for its popup.</span>`);
- const pips=()=>{const s=LS(L.id),last=s.hist.slice(-5);m.querySelector(".mastery").innerHTML=[0,1,2,3,4].map(k=>`<i class="pip ${last[k]==null?"":last[k]?"y":"n"}"></i>`).join("")+(s.status=="mastered"?' <span class="chip" style="background:#e8f8ef;color:#18a058">Mastered</span>':"");m.querySelector(".nextL").disabled=!(s.status=="mastered"||s.status=="skipped")||i==LESSONS.length-1};pips();
+ const pips=()=>{const s=LS(L.id),last=s.hist.slice(-5);m.querySelector(".mastery").innerHTML=[0,1,2,3,4].map(k=>`<i class="pip ${last[k]==null?"":last[k]?"y":"n"}"></i>`).join("")+(s.status=="mastered"?' <span class="chip" style="background:#e8f8ef;color:#18a058">Mastered</span>':"");m.querySelector(".nextL").disabled=i==LESSONS.length-1};pips();
  let st=0;const lis=m.querySelectorAll(".steps li");const step=()=>{if(st<lis.length)lis[st++].classList.add("show");if(st>=lis.length)m.querySelector(".stepb").disabled=true};step();m.querySelector(".stepb").onclick=step;m.querySelector(".allb").onclick=()=>{while(st<lis.length)step()};
  m.querySelector(".prev").onclick=()=>location.hash="Notes/"+LESSONS[i-1].id;m.querySelector(".nextL").onclick=()=>location.hash="Notes/"+LESSONS[i+1].id;
- m.querySelector(".skip").onclick=()=>{skipAhead(i);toast("⏭ Skipped. The next lesson is unlocked.");if(LESSONS[i+1])location.hash="Notes/"+LESSONS[i+1].id};
+ if(m.querySelector(".skip"))m.querySelector(".skip").onclick=()=>{skipAhead(i);toast("⏭ Skipped. The next lesson is unlocked.");if(LESSONS[i+1])location.hash="Notes/"+LESSONS[i+1].id};
  if(m.querySelector(".visbox"))VIS[L.vis](m.querySelector(".visbox"));
  const onAns=ok=>{const just=record(L.id,ok);pips();renderSide();if(just){confetti(120);toast("🏆 Lesson mastered! "+(LESSONS[i+1]?"Next lesson unlocked.":"Course complete!"))}};
  const nextQ=()=>{const k=rnd(L.gens);askUI(m.querySelector(".pq"),GEN[k].g(),ok=>onAns(ok))};m.querySelector(".nextq").onclick=nextQ;nextQ();
