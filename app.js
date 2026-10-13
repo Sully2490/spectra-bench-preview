@@ -1,5 +1,5 @@
 // ---------- app shell: tabs, tray, table, course ----------
-const TOOLS=[["Lab","🧪 Lab (all visuals)"],["Drill","🎯 Drill"],["Prep","⏱️ Exam prep"],["Cards","🃏 Flashcards"]];
+const TOOLS=[["Lab","🧪 Lab (all visuals)"],["Drill","🎯 Drill"],["Prep","⏱️ Exam prep"],["Cards","🃏 Flash Cards"]];
 const SIDE=JSON.parse(localStorage.sbSide||'{"3":true,"4":true}');
 function renderSide(){const [t,sub]=decodeURIComponent(location.hash.slice(1)||"Map").split("/");const cur=t=="Notes"?(sub||""):null;const ic={locked:"🔒",inprog:"●",mastered:"✓",skipped:"⏭"};
  const curCh=cur&&LESSONS.find(l=>l.id==cur);if(curCh)SIDE[curCh.ch]=true;
@@ -107,8 +107,8 @@ function Prep(m){setHelp("Timed test","A random mix from every lesson. Each answ
    askUI(tb.querySelector(".qq"),Q,(ok,x)=>{log.push({Q,ok,x});i++;const b=document.createElement("button");b.className="btn";b.textContent=i>=N?"Finish":"Next ▶";b.onclick=one;tb.querySelector(".qq").appendChild(b)})};
   tm=setInterval(()=>{const r=Math.max(0,end-Date.now()),c=tb.querySelector(".clk");if(c)c.textContent=`⏱ ${Math.floor(r/60000)}:${String(Math.floor(r/1000)%60).padStart(2,"0")}`;if(!r){while(log.length<N)log.push({Q:{q:"(time's up)",a:"—"},ok:false});finish()}},300);one()}}
 // ---------- Cards (Quizlet-style) ----------
-function Cards(m){const all=[...CARDS.map((c,i)=>({k:"c"+i,f:c[0],b:c[1],d:i<15?"3":"4"})),...POLY.map(p=>({k:"p"+p[1],f:p[0],b:p[1],d:"poly"}))];let deck="all",queue=[],cur=0,flipped=false;
- m.innerHTML=`<h2>Cards</h2><div class="deckbar"><div class="tabs2">${[["all","All"],["3","Ch 3"],["4","Ch 4"],["poly","Polyatomic ions"],["learn","Still learning"]].map(([k,l])=>`<button data-d="${k}">${l}</button>`).join("")}</div><button class="btn sec sm rs">↺ Reset progress</button></div>
+function Cards(m){const all=[...CARDS.map((c,i)=>({k:"c"+i,f:c[0],b:c[1],d:i<15?"3":"4"})),...POLY.map(p=>({k:"p"+p[1],f:p[0],b:p[1],d:"poly"})),...Object.entries(DECKS2).flatMap(([d,l])=>l.map((c,i)=>({k:d+i,f:c[0],b:c[1],d})))];let deck="all",queue=[],cur=0,flipped=false;
+ m.innerHTML=`<h2>Flash Cards</h2><p class="mut">Pick a deck:</p><div class="deckbar"><div class="tabs2">${[["all","All"],["3","Ch 3"],["4","Ch 4"],["poly","Polyatomic ions"],["ionic","Covalent vs ionic"],["qn","Quantum numbers"],["learn","Still learning"]].map(([k,l])=>`<button data-d="${k}">${l}</button>`).join("")}</div><button class="btn sec sm rs">↺ Reset progress</button></div>
  <div class="piles"><span class="pile l">Still learning: <b class="nl">0</b></span><span class="pile k">Know it: <b class="nk">0</b></span><span class="chip prog"></span></div>
  <div class="scene"><div class="fcard"><div class="face front"><span class="lab">PROMPT</span><div class="ft"></div><span class="hint">Click or press Space to flip</span></div><div class="face back"><span class="lab">ANSWER</span><div class="bt"></div><span class="hint">Sort it with the buttons below (← / →)</span></div></div></div>
  <div style="text-align:center"><button class="btn bad sl">← Still learning</button><button class="btn sec fl">Flip</button><button class="btn ok kn">Know it →</button></div><div class="done"></div>`;
