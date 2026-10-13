@@ -91,3 +91,18 @@ table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid var(--li
 #sideShade{display:none}
 @media(max-width:900px){#sideBtn{display:block}#side{transform:translateX(-100%);transition:transform .25s;box-shadow:4px 0 20px #0002}
  body.sideOpen #side{transform:none}body.sideOpen #sideShade{display:block;position:fixed;inset:var(--hh,45px) 0 0 0;background:#0004;z-index:11}}
+.akFS{position:fixed;inset:0;z-index:900;background:#fff;color:#111;display:flex;flex-direction:column}
+.akFS.hidden{display:none}body.akOpen{overflow:hidden}
+.akFS .akTop{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid #ddd;background:#fff}
+.akFS .akTop b{flex:1;text-align:center;font-size:20px}
+.akBack{border:0;background:none;font-size:26px;cursor:pointer;color:#333}
+.akDone{background:#d32f2f;color:#fff;border:0;border-radius:6px;padding:8px 18px;font-weight:700;font-size:16px;cursor:pointer}
+.akFS .akMid{flex:1;display:flex;align-items:stretch;min-height:0}.akFS .akCan{flex:1;position:relative;background:#fff}
+.akFS .lwSvg{width:100%;height:100%}
+.akFS .akBar{display:flex;justify-content:space-around;padding:10px;border-top:1px solid #ddd;background:#fafafa}
+.akFS .tb{background:none;border:1px solid #ccc;border-radius:8px;padding:8px 12px;font-size:16px;color:#222;cursor:pointer}.akFS .tb.on{background:#1565c0;color:#fff}
+.akHelp{position:absolute;left:10%;right:10%;top:10%;background:#fff;border:1px solid #999;border-radius:10px;padding:14px;box-shadow:0 6px 20px #0003;font-size:14px}
+.akHelp.hidden{display:none}
+.qprev{position:relative;border:2px dashed #999;border-radius:10px;background:#fff;min-height:180px;cursor:pointer;margin:8px 0}
+.qprev .lwPrev{width:100%;max-height:260px}.qopen{position:absolute;right:8px;bottom:6px;font-size:13px;color:#555}
+.qprev.good{border:3px solid #2e7d32}.qprev.badq{border:3px solid #c62828}

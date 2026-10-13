@@ -30,13 +30,17 @@ function LewisBuilder(root,opts={}){
  const bsum=id=>bondsOf(id).reduce((s,b)=>s+b.o,0),fcOf=a=>a.el?VAL[a.el]-2*a.lp-bsum(a.id):0,eAround=a=>2*(bsum(a.id)+a.lp);
  const need=()=>totalVE(mol),used=()=>2*Object.values(S.ord).reduce((s,o)=>s+o,0)+2*S.atoms.reduce((s,a)=>s+a.lp,0);
  const target=a=>a.el=="H"?2:a.el=="B"?6:a.el=="Be"?4:8;
- root.innerHTML=`<div class="akt"><div class="akTop"><b class="akF"></b>${opts.lockMol?"":`<select class="lm">${mols.map(m=>`<option value="${m.f}" ${m==mol?"selected":""}>${fF(m.f)}</option>`).join("")}</select><button class="btn sm sec prac">🎲 Practice mode</button><span class="chip pscore"></span>`}<button class="btn sm done">Done</button></div>
+ root.innerHTML=`<div class="akt akQ"><div class="akQTop"><b class="akF"></b>${opts.lockMol?"":`<select class="lm">${mols.map(m=>`<option value="${m.f}" ${m==mol?"selected":""}>${fF(m.f)}</option>`).join("")}</select><button class="btn sm sec prac">🎲 Practice mode</button><span class="chip pscore"></span>`}</div>
+ <p class="mut qtxt"></p><div class="qprev" title="Tap to open the drawing tool"><div class="qpin"></div><div class="qopen">✏️ Tap to draw</div></div>
+ <div class="row"><button class="btn sm sec hint">💡 Hint</button></div>
+ <div class="meter" style="margin-top:6px"><i></i></div><div class="vc mut" style="font-size:13px"></div><div class="msgs"></div><div class="after"></div>
+ <div class="akFS hidden"><div class="akTop"><button class="akBack" title="Back">←</button><b class="akF2"></b><button class="akDone">Done</button></div>
  <div class="akMid"><div class="slw"><input type="range" class="vsl lsl" min="0" max="8" step="2" value="0"><small class="lsll">electrons</small><b class="lslv"></b></div>
- <div class="akCan"><svg class="lwSvg" viewBox="0 0 600 430"></svg><div class="tip hidden"></div></div>
+ <div class="akCan"><svg class="lwSvg" viewBox="0 0 600 430"></svg><div class="tip hidden"></div><div class="akHelp hidden"></div></div>
  <div class="slw"><input type="range" class="vsl rsl" min="1" max="6" step="1" value="1"><small>bonds</small><b class="rslv"></b></div></div>
- <div class="akBar"><button class="tb hlp" title="Help">?</button><button class="tb rst" title="Reset">🗑</button><button class="tb und" title="Undo">↶</button><button class="tb fcT" title="Formal charges">FC±</button><button class="tb eT" title="Valence electrons">e⁻</button><button class="btn sm sec chel">Change Element</button>
- <span class="grow"></span><button class="btn sm ok chkb">✔ Check</button><button class="btn sm sec hint">💡 Hint</button></div>
- <div class="meter" style="margin-top:6px"><i></i></div><div class="vc mut" style="font-size:13px"></div><div class="msgs"></div><div class="after"></div></div>`;
+ <div class="akBar"><button class="tb hlp" title="Help">?</button><button class="tb rst" title="Reset">🗑</button><button class="tb und" title="Undo">↶</button><button class="tb fcT" title="Formal charges">FC</button><button class="tb eT" title="Electron counts">e⁻</button><button class="tb chel" title="Change Element">Change Element</button></div></div></div>`;
+ const fs=root.querySelector(".akFS"),openFS=()=>{fs.classList.remove("hidden");document.body.classList.add("akOpen")},closeFS=()=>{fs.classList.add("hidden");document.body.classList.remove("akOpen");root.querySelector(".qpin").innerHTML=root.querySelector(".lwSvg").outerHTML.replace('class="lwSvg"','class="lwPrev"')};
+ root.__lb={setS:x=>{S=x;draw()},get:()=>S,select:id=>{sel={t:"a",id};draw()}};root.querySelector(".qprev").onclick=openFS;root.querySelector(".akBack").onclick=closeFS;
  const q=s=>root.querySelector(s),svg=q("svg"),lsl=q(".lsl"),rsl=q(".rsl");
  function msg(list){q(".msgs").innerHTML=list.map(([t,s])=>`<div class="msg ${t} popin">${s}</div>`).join("")}
  function layout(){const P={},LP={};const r0=S.atoms.find(a=>a.parent<0);P[r0.id]=[0,0];
@@ -53,7 +57,7 @@ function LewisBuilder(root,opts={}){
    if(showFC&&a.el){const f=fcOf(a);h+=`<circle cx="${x+22}" cy="${y-20}" r="11" fill="${f>0?"#e5484d":f<0?"#3fa9ff":"#9aa0bd"}"/><text x="${x+22}" y="${y-15.5}" text-anchor="middle" font-size="12" font-weight="900" fill="#fff">${f>0?"+"+f:f<0?"−"+(-f):"0"}</text>`}
    if(showE&&a.el){const e=eAround(a),ok=a.el=="H"?e==2:(BY[a.el].p>2?e>=8:e==target(a));h+=`<rect x="${x-34}" y="${y+18}" width="30" height="16" rx="8" fill="${ok?"#18a058":"#f2b705"}"/><text x="${x-19}" y="${y+30}" text-anchor="middle" font-size="11" font-weight="900" fill="#fff">${e}e⁻</text>`}h+="</g>"});
   if(mol.q)h+=`<text x="588" y="28" font-size="17" font-weight="800" fill="#7a4cff" text-anchor="end">overall charge ${mol.q<0?(mol.q<-1?-mol.q:"")+"−":"+"}</text>`;if(solved)h=`<rect x="5" y="5" width="590" height="420" rx="14" fill="none" stroke="#18a058" stroke-width="5"/>`+h;svg.innerHTML=h;
-  q(".akF").innerHTML=fF(mol.f)+(mol.n?` <span class="mut" style="font-weight:600">(${mol.n})</span>`:"");q(".fcT").classList.toggle("on",showFC);q(".eT").classList.toggle("on",showE);
+  q(".akF").innerHTML=fF(mol.f)+(mol.n?` <span class="mut" style="font-weight:600">(${mol.n})</span>`:"");q(".akF2").innerHTML=fF(mol.f);q(".qtxt").innerHTML=`Draw the Lewis structure of ${fF(mol.f)}. Tap the box to open the drawing tool; press <b>Done</b> when finished.`;setTimeout(()=>{const p=q(".qpin");if(p)p.innerHTML=svg.outerHTML.replace('class="lwSvg"','class="lwPrev"')});q(".fcT").classList.toggle("on",showFC);q(".eT").classList.toggle("on",showE);
   // sliders reflect the selection
   if(sel&&sel.t=="a"){const a=A(sel.id);lsl.disabled=rsl.disabled=false;q(".lsll").textContent="electrons";lsl.min=0;lsl.step=2;lsl.max=Math.min(8,2*Math.max(0,6-deg(a)));lsl.value=2*a.lp;q(".lslv").textContent=2*a.lp;rsl.value=deg(a);q(".rslv").textContent=deg(a);q(".chel").disabled=false}
   else if(sel&&sel.t=="b"){lsl.disabled=false;rsl.disabled=true;q(".lsll").textContent="bond type";lsl.min=1;lsl.max=3;lsl.step=1;lsl.value=S.ord[sel.id];q(".lslv").textContent=["","single","double","triple"][S.ord[sel.id]];q(".rslv").textContent="";q(".chel").disabled=true}
@@ -73,9 +77,9 @@ function LewisBuilder(root,opts={}){
  q(".chel").onclick=picker;q(".und").onclick=()=>{if(hist.length){S=JSON.parse(hist.pop());sel=null;draw()}};q(".rst").onclick=()=>{snap();S=start();sel={t:"a",id:0};solved=false;q(".after").innerHTML="";msg([]);draw()};
  q(".fcT").onclick=()=>{showFC=!showFC;draw()};q(".eT").onclick=()=>{showE=!showE;draw()};
  const helpTxt="<b>How it works (same as Aktiv's Free Draw tool):</b> tap an atom or bond to select it (it turns red). The <b>right slider</b> sets how many atoms bond to the selected atom; new blank atoms appear automatically. The <b>left slider</b> sets nonbonding electrons (shown as dot pairs), or the bond type when a bond is selected. Double-tap an atom or press <b>Change Element</b> to pick an element. FC± shows the calculated formal charges and e⁻ shows each atom's electron count. 🗑 resets to 2 atoms. Check and 💡 Hint are Spectra Bench extras.";
- q(".hlp").onclick=()=>msg([["h",helpTxt]]);
+ q(".hlp").onclick=()=>{const h=q(".akHelp");h.innerHTML=helpTxt+'<br><button class="btn sm gotit2">Close</button>';h.classList.toggle("hidden");h.querySelector(".gotit2").onclick=()=>h.classList.add("hidden")};
  if(!localStorage.sbTip){const tp=q(".tip");tp.classList.remove("hidden");tp.innerHTML=`<b>First time?</b> 1) Tap an atom (it turns red). 2) Drag the right slider to add bonds. 3) Double-tap an atom to choose its element. 4) Drag the left slider for lone pairs. <button class="btn sm gotit">Got it</button>`;tp.querySelector(".gotit").onclick=()=>{localStorage.sbTip=1;tp.classList.add("hidden")}}
- const pickMol=m=>{mol=m;reset();q(".after").innerHTML="";msg([]);draw();opts.onMol&&opts.onMol(mol)};
+ const pickMol=m=>{mol=m;reset();q(".qprev").classList.remove("good","badq");q(".after").innerHTML="";msg([]);draw();opts.onMol&&opts.onMol(mol)};
  if(q(".lm"))q(".lm").onchange=e=>pickMol(MOLS.find(m=>m.f==e.target.value));
  if(q(".prac"))q(".prac").onclick=()=>{practice=true;pScore=[0,0];const m=rnd(MOLS.filter(x=>x!=mol));q(".lm").value=m.f;pickMol(m);msg([["h","🎲 Practice mode: draw each molecule. When you get it, a new one loads."]]);q(".pscore").textContent="0 / 0"};
  const sig=list=>list.map(a=>a.el+":"+a.nb.sort().join(",")).sort().join("|");
@@ -102,7 +106,7 @@ function LewisBuilder(root,opts={}){
   const nres=ref?ref.count:1;let t=`<b>Correct!</b> ${mol.note||""}`;if(nres>1)t+=`<br>Resonance: ${found.size} of ${nres} equivalent structures found.${found.size<nres?" To draw another, move a double bond (and its lone pairs), then Check.":" All found! The real species is their average."}${!isNew?" (You already drew this one.)":""}`;
   msg([["g","✔ "+t]]);if(practice){pScore[0]++;pScore[1]++;q(".pscore").textContent=`${pScore[0]} / ${pScore[1]}`;setTimeout(()=>{const m=rnd(MOLS.filter(x=>x!=mol));q(".lm").value=m.f;pickMol(m)},1600);return true}
   opts.onSolved&&opts.onSolved(mol,found.size,nres);if(!opts.noFollow)followUp();return true};
- q(".chkb").onclick=check;q(".done").onclick=()=>{if(check()&&opts.onDone)opts.onDone()};
+ q(".akDone").onclick=()=>{closeFS();const ok=check();q(".qprev").classList.toggle("good",ok);q(".qprev").classList.toggle("badq",!ok);if(ok&&opts.onDone)opts.onDone()};
  function followUp(){const G=mol.geo,box=q(".after");const qs=(opts.follow||["eg","mg","ang","pol"]).filter(k=>k!="pol"||G.pol);const L={eg:["Electron geometry",EGS],mg:["Molecular geometry",MGS],ang:["Bond angle",ANGS],pol:["Polar or nonpolar?",["polar","nonpolar"]]};
   box.innerHTML=`<div class="card popin"><b>Follow-up${G.about?" (around "+G.about+")":""}</b>`+qs.map(k=>`<p>${L[k][0]}<br>${L[k][1].map(o=>`<button class="btn sm sec fq" data-k="${k}">${o}</button>`).join("")}<span data-r="${k}"></span></p>`).join("")+`<button class="btn sm sec sol">📘 Solution</button><div class="solbox"></div></div>`;
   box.querySelectorAll(".fq").forEach(b=>b.onclick=()=>{const k=b.dataset.k,ok=b.textContent==G[k];scoreAnswer(ok);box.querySelectorAll(`.fq[data-k=${k}]`).forEach(x=>{x.disabled=true;if(x.textContent==G[k])x.classList.replace("sec","ok");else if(x==b)x.classList.replace("sec","bad")});
