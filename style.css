@@ -119,3 +119,6 @@ body.sideMin #side{display:none}body.sideMin #sideOpen{display:block}
 #topnav a,#topnav button{white-space:nowrap;color:#fff;text-decoration:none;background:#fff2;border:0;border-radius:9px;padding:6px 11px;font:inherit;font-size:14px;font-weight:600;cursor:pointer}
 #topnav a.on{background:#fff;color:#5b5bf7}
 @media(max-width:900px){#sideOpen,#sideMin{display:none!important}body.sideMin #side{display:block}header{flex-wrap:wrap}#topnav{order:9;flex-basis:100%;margin:6px 0 0}}
+
+/* Element picker must sit above the full-screen Draw tool */
+body.akOpen #modal{z-index:1000}
